@@ -5,8 +5,10 @@
 #include <vector>
 #include <array>
 #include <optional>
+#include <memory>
 
 #include "windowContext.hpp"
+#include "vulkanDevice.hpp"
 
 struct Vertex {
     glm::vec3 pos;
@@ -27,24 +29,7 @@ public:
     void addCube(glm::vec3 center, float size, glm::vec3 color);
     void clearGeometry();
 private:
-    // --- Structs ---
-    // Device Queue Indices
-    struct QueueFamilyIndices {
-        std::optional<uint32_t> graphicsFamily;
-        std::optional<uint32_t> presentFamily;
-
-        bool isComplete() {return graphicsFamily.has_value() && presentFamily.has_value();}
-    };
-
-    // Swapchain supporting details
-    struct SwapChainSupportDetails {
-        VkSurfaceCapabilitiesKHR capabilities;
-        std::vector<VkSurfaceFormatKHR> formats;
-        std::vector<VkPresentModeKHR> presentModes;
-    };
-
     // --- Constants ---
-    const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     const size_t MAX_VERTEX_COUNT = 10000;
     const size_t MAX_INDEX_COUNT = 30000;
 
@@ -61,6 +46,7 @@ private:
     VkSurfaceKHR surface;
 
     // Device
+    std::unique_ptr<VulkanDevice> vulkanDevice;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
 
@@ -130,8 +116,6 @@ private:
     // Infrastructure set up
     void createInstance();
     void createSurface();
-    void pickPhysicalDevice();
-    void createLogicalDevice();
     void createCommandPool();
     void createSyncObjects();
     void createDescriptorSetLayout();
@@ -150,8 +134,6 @@ private:
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
-    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
-    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
     // GPU resources
     void createGeoBuffers();
