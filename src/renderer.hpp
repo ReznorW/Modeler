@@ -1,12 +1,12 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 
 #include <vector>
 #include <array>
 #include <optional>
+
+#include "windowContext.hpp"
 
 struct Vertex {
     glm::vec3 pos;
@@ -25,6 +25,7 @@ class Renderer {
 public: 
     void run();
     void addCube(glm::vec3 center, float size, glm::vec3 color);
+    void clearGeometry();
 private:
     // --- Structs ---
     // Device Queue Indices
@@ -48,13 +49,13 @@ private:
     const size_t MAX_INDEX_COUNT = 30000;
 
     // Window dimensions
-    const uint32_t WIDTH = 1280;
-    const uint32_t HEIGHT = 720;
+    const int WIDTH = 1280;
+    const int HEIGHT = 720;
 
     // --- Globals ---
     // Window
-    GLFWwindow* window;
-
+    WindowContext window{WIDTH, HEIGHT, "VulkanCAD"};
+    
     // Instance
     VkInstance instance;
     VkSurfaceKHR surface;
@@ -120,16 +121,8 @@ private:
     bool dirtyGeo = true;
     bool framebufferResized = false;
 
-    // --- Callbacks ---
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-        auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
-        app->framebufferResized = true;
-    }
-
     // --- Functions ---
     // Core Lifecycle
-    void initWindow();
-    void initInput();
     void initVulkan();
     void mainLoop();
     void cleanup();

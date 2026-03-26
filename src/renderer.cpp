@@ -42,7 +42,6 @@ std::array<VkVertexInputAttributeDescription, 2> Vertex::getAttributeDescription
 
 // === Public functions ===
 void Renderer::run() {
-    initWindow();
     initVulkan();
     mainLoop();
     cleanup();
@@ -84,56 +83,16 @@ void Renderer::addCube(glm::vec3 center, float size, glm::vec3 color) {
     dirtyGeo = true;
 }
 
+void Renderer::clearGeometry() {
+    vertices.clear();
+    indices.clear();
+    dirtyGeo = true;
+}
+
 // === Private functions ===
 // --- Core Lifecycle ---
-void Renderer::initWindow() {
-    glfwInit();
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    //glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-    window = glfwCreateWindow(WIDTH, HEIGHT, "Vector CAD", nullptr, nullptr);
-
-    glfwSetWindowUserPointer(window, this); 
-    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-
-    initInput();
-}
-
-void Renderer::initInput() {
-    glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
-        auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
-
-        if (action == GLFW_PRESS) {
-            // Spawn random cube
-            if (key == GLFW_KEY_A) {
-                float x = (rand() % 10 - 5) / 2.0f;
-                float y = (rand() % 10 - 5) / 2.0f;
-                float z = (rand() % 10 - 5) / 2.0f;
-
-                float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-                float g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-                float b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-                
-                app->addCube(glm::vec3(x, y, z), 0.5f, glm::vec3(r, g, b));
-                std::cout << "Cube added! Total vertices: " << app->vertices.size() << std::endl;
-            }
-
-            // Clear screen
-            if (key == GLFW_KEY_C) {
-                app->vertices.clear();
-                app->indices.clear();
-                app->dirtyGeo = true;
-            }
-
-            // Close program
-            if (key == GLFW_KEY_ESCAPE) {
-                glfwSetWindowShouldClose(window, GL_TRUE);
-            }
-        }
-    });
-}
-
 void Renderer::initVulkan() {
+    window.initInput(this);
     createInstance();
     createSurface();
     pickPhysicalDevice();
@@ -155,9 +114,9 @@ void Renderer::initVulkan() {
 }
 
 void Renderer::mainLoop() {
-    while (!glfwWindowShouldClose(window)) {
+    while (!window.shouldClose()) {
         // Poll input
-        glfwPollEvents();
+        window.pollEvents();
 
         // Update cube position
         updateUniformBuffer();
@@ -221,10 +180,6 @@ void Renderer::cleanup() {
     vkDestroyDevice(device, nullptr);
     vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);
-
-    // Clean up window
-    glfwDestroyWindow(window);
-    glfwTerminate();
 }
 
 // --- Infrastructure set up ---
@@ -258,7 +213,7 @@ void Renderer::createInstance() {
 
 void Renderer::createSurface() {
     // Attempt to create a Vulkan surface on the GLFW window
-    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+    if (window.createSurface(instance, &surface) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create window surface.");
     }
 }
@@ -735,14 +690,6 @@ void Renderer::createFramebuffers() {
 }
 
 void Renderer::recreateSwapChain() {
-    // Handle window minimization
-    int width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
-    while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(window, &width, &height);
-        glfwWaitEvents();
-    }
-
     vkDeviceWaitIdle(device);
 
     cleanupSwapChain();
@@ -797,7 +744,7 @@ VkExtent2D Renderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabiliti
         return capabilities.currentExtent;
     } else {
         int width, height;
-        glfwGetFramebufferSize(window, &width, &height);
+        window.getFramebufferSize(&width, &height);
         VkExtent2D actualExtent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
         return actualExtent;
     }
@@ -1094,6 +1041,13 @@ uint32_t Renderer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags pro
 
 // --- Frame execution ---
 void Renderer::drawFrame() {
+    // Handle window minimization
+    int width = 0, height = 0;
+    window.getFramebufferSize(&width, &height);
+    while (width == 0 || height == 0) {
+        return;
+    }
+
     // Wait for sync objects
     vkWaitForFences(device, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
 
@@ -1150,13 +1104,20 @@ void Renderer::drawFrame() {
 
     result = vkQueuePresentKHR(presentQueue, &presentInfo);
     
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
-        framebufferResized = false;
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || window.wasResized()) {
+        window.resetResizeFlag();
         recreateSwapChain();
     }
 }
 
 void Renderer::updateUniformBuffer() {
+    float width = static_cast<float>(swapChainExtent.width);
+    float height = static_cast<float>(swapChainExtent.height);
+    if (width <= 0.0f || height <= 0.0f) {
+        return; 
+    }
+    float aspect = width / height;
+
     static auto startTime = std::chrono::high_resolution_clock::now();
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
@@ -1168,7 +1129,7 @@ void Renderer::updateUniformBuffer() {
     model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)); // X
     ubo.model = model;
     ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+    ubo.proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1; // Flip Y axis bc Vulkan
 
     memcpy(uboMapped, &ubo, sizeof(ubo));
