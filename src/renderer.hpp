@@ -118,6 +118,13 @@ private:
 
     // Flags
     bool dirtyGeo = true;
+    bool framebufferResized = false;
+
+    // --- Callbacks ---
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+        auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
+        app->framebufferResized = true;
+    }
 
     // --- Functions ---
     // Core Lifecycle
@@ -143,8 +150,10 @@ private:
     void createGraphicsPipeline();
     void createDepthResources();
     void createFramebuffers();
+    void recreateSwapChain();
+    void cleanupSwapChain();
 
-    // Swapchain helpers
+    // SwapChain helpers
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
