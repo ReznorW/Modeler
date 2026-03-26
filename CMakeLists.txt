@@ -3,18 +3,18 @@ project(VulkanCAD)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# 1. Find Vulkan (Required SDK must be installed on your OS)
+# Find Vulkan
 find_package(Vulkan REQUIRED)
 
-# 2. Add GLFW (Build from source in external folder)
+# Add GLFW
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/glfw)
 
-# 3. Include GLM (Header-only)
+# Include GLM
 set(GLM_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/glm)
 
-# 4. Setup ImGui Sources
+# Set up ImGui sources
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui)
 set(IMGUI_SOURCES 
     "${IMGUI_DIR}/imgui.cpp"
@@ -26,13 +26,15 @@ set(IMGUI_SOURCES
     "${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp"
 )
 
-# 5. Create the Executable (Include IMGUI_SOURCES here!)
+# Create the executable
 add_executable(VulkanCAD 
     src/main.cpp 
+    src/renderer.cpp
+    src/renderer.hpp
     ${IMGUI_SOURCES}
 )
 
-# 6. Link Everything
+# Link everything together
 target_link_libraries(VulkanCAD 
     PRIVATE 
     Vulkan::Vulkan 
@@ -41,6 +43,7 @@ target_link_libraries(VulkanCAD
 
 # Include directories for headers
 target_include_directories(VulkanCAD PRIVATE 
+    src
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${Vulkan_INCLUDE_DIRS}
