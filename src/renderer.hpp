@@ -1,23 +1,10 @@
 #pragma once
 
-#include <glm/glm.hpp>
-
-#include <vector>
-#include <array>
-#include <optional>
-#include <memory>
-
 #include "windowContext.hpp"
 #include "vulkanDevice.hpp"
 #include "vulkanSwapchain.hpp"
 #include "vulkanBuffer.hpp"
-
-struct Vertex {
-    glm::vec3 pos;
-    glm::vec3 color;
-    static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();
-};
+#include "vulkanPipeline.hpp"
 
 class Renderer {
 public: 
@@ -44,10 +31,6 @@ private:
     // Device
     std::unique_ptr<VulkanDevice> vulkanDevice;
 
-    // Queues
-    VkQueue graphicsQueue;
-    VkQueue presentQueue;
-
     // Sync objects
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
@@ -59,8 +42,7 @@ private:
     std::unique_ptr<VulkanBuffer> uboBuffer;
 
     // Pipeline
-    VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
+    std::unique_ptr<VulkanPipeline> vulkanPipeline;
 
     // Render pass
     VkRenderPass renderPass;
@@ -89,9 +71,6 @@ private:
     // Render pass
     void createRenderPass();
 
-    // Graphics pipeline
-    void createGraphicsPipeline();
-
     // GPU resources
     void createGeoBuffers();
     void createUniformBuffers();
@@ -101,8 +80,4 @@ private:
     void updateUniformBuffer();
     void updateGpuBuffers();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-
-    // Utils
-    VkShaderModule createShaderModule(const std::vector<char>& code);
-    std::vector<char> readFile(const std::string& filename);
 };

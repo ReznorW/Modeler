@@ -371,4 +371,3 @@ VkExtent2D VulkanSwapchain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& cap
         return extent;
     }
 }
-
