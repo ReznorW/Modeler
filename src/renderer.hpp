@@ -19,12 +19,6 @@ struct Vertex {
     static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();
 };
 
-struct UniformBufferObject {
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
-};
-
 class Renderer {
 public: 
     void run();
@@ -64,11 +58,6 @@ private:
     std::unique_ptr<VulkanBuffer> indexBuffer;
     std::unique_ptr<VulkanBuffer> uboBuffer;
 
-    // Descriptor resources
-    VkDescriptorSetLayout descriptorSetLayout;
-    VkDescriptorPool descriptorPool;
-    std::vector<VkDescriptorSet> descriptorSets;
-
     // Pipeline
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
@@ -96,7 +85,6 @@ private:
     // Infrastructure set up
     void createInstance();
     void createSyncObjects();
-    void createDescriptorSetLayout();
 
     // Render pass
     void createRenderPass();
@@ -107,8 +95,6 @@ private:
     // GPU resources
     void createGeoBuffers();
     void createUniformBuffers();
-    void createDescriptorPool();
-    void createDescriptorSets();
 
     // Frame execution
     void drawFrame();

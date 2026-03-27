@@ -63,6 +63,8 @@ VulkanSwapchain::VulkanSwapchain(VulkanDevice& device, VkSurfaceKHR surface, VkE
 
     createImageViews();
     createDepthResources();
+    createDescriptorSetLayout();
+    createDescriptorPool();
 }
 
 VulkanSwapchain::~VulkanSwapchain() {
@@ -83,6 +85,10 @@ VulkanSwapchain::~VulkanSwapchain() {
     }
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
+
+    // Clean up descriptor resources
+    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 }
 
 // --- Public functions ---
@@ -112,6 +118,50 @@ void VulkanSwapchain::createFramebuffers(VkRenderPass renderPass) {
         if (vkCreateFramebuffer(deviceRef.getLogicalDevice(), &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer.");
         }
+    }
+}
+
+void VulkanSwapchain::createDescriptorSets(VkBuffer uboBuffer) {
+    // Get image count
+    size_t imageCount = swapChainImages.size();
+
+    // Ensure that descriptor sets is the correct size
+    descriptorSets.resize(imageCount);
+
+    // Get descriptor set layouts
+    std::vector<VkDescriptorSetLayout> layouts(imageCount, descriptorSetLayout);
+
+    // Set parameters for allocating descriptor sets
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(imageCount);
+    allocInfo.pSetLayouts = layouts.data();
+
+    // Attempt to allocate descriptor sets
+    if (vkAllocateDescriptorSets(deviceRef.getLogicalDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate descriptor sets.");
+    }
+
+    // Configure the descriptor to point to images
+    for (size_t i = 0; i < imageCount; i++) {
+        // Set parameters for descriptor buffer
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = uboBuffer;
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UniformBufferObject);
+
+        // Set parameters for writing descriptor set
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = descriptorSets[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+
+        // Update descriptor sets
+        vkUpdateDescriptorSets(deviceRef.getLogicalDevice(), 1, &descriptorWrite, 0, nullptr);
     }
 }
 
@@ -246,6 +296,48 @@ void VulkanSwapchain::createDepthResources() {
     VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
     createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
     depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+}
+
+void VulkanSwapchain::createDescriptorSetLayout() {
+    // Set parameters for descriptor set layout binding for UBO
+    VkDescriptorSetLayoutBinding uboLayoutBinding{};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // Set parameters for descriptor set layout for UBO and pass in binding
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &uboLayoutBinding;
+
+    // Attempt to create descriptor set layout
+    if (vkCreateDescriptorSetLayout(deviceRef.getLogicalDevice(), &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create descriptor set layout.");
+    }
+}
+
+void VulkanSwapchain::createDescriptorPool() {
+    // Get image count
+    uint32_t imageCount = static_cast<uint32_t>(swapChainImages.size());
+
+    // Set size for descriptor pool
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = imageCount;
+
+    // Set parameters for descriptor pool and pass in pool size
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = imageCount;
+
+    // Attempt to create descriptor pool
+    if (vkCreateDescriptorPool(deviceRef.getLogicalDevice(), &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create descriptor pool.");
+    }
 }
 
 VkSurfaceFormatKHR VulkanSwapchain::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {

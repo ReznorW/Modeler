@@ -108,13 +108,11 @@ void Renderer::initVulkan() {
     vulkanSwapchain = std::make_unique<VulkanSwapchain>(*vulkanDevice, surface, window.getExtent());
 
     createRenderPass();
-    createDescriptorSetLayout();
     createGraphicsPipeline();
     vulkanSwapchain->createFramebuffers(renderPass);
     createGeoBuffers();
     createUniformBuffers();
-    createDescriptorPool();
-    createDescriptorSets();
+    vulkanSwapchain->createDescriptorSets(uboBuffer->getHandle());
     createSyncObjects();
 }
 
@@ -145,10 +143,6 @@ void Renderer::cleanup() {
     vkDestroyPipeline(device, graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
-
-    // Clean up descriptor resources
-    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
     // Clean up sync objects
     vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
@@ -207,26 +201,6 @@ void Renderer::createSyncObjects() {
         vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS ||
         vkCreateFence(device, &fenceInfo, nullptr, &inFlightFence) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create synchronization objects for a frame.");
-    }
-}
-
-void Renderer::createDescriptorSetLayout() {
-    // Set parameters for descriptor set layout binding for UBO
-    VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-    // Set parameters for descriptor set layout for UBO and pass in binding
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &uboLayoutBinding;
-
-    // Attempt to create descriptor set layout
-    if (vkCreateDescriptorSetLayout(vulkanDevice->getLogicalDevice(), &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create descriptor set layout.");
     }
 }
 
@@ -378,6 +352,7 @@ void Renderer::createGraphicsPipeline() {
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
     // Set parameters and attempt to create a pipeline layout
+    VkDescriptorSetLayout descriptorSetLayout = vulkanSwapchain->getDescriptorSetLayout();
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
@@ -449,72 +424,6 @@ void Renderer::createUniformBuffers() {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
     uboBuffer = std::make_unique<VulkanBuffer>(*vulkanDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     uboBuffer->map();
-}
-
-void Renderer::createDescriptorPool() {
-    // Get image count from swapchain
-    uint32_t imageCount = static_cast<uint32_t>(vulkanSwapchain->getImageCount());
-
-    // Set size for descriptor pool
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = imageCount;
-
-    // Set parameters for descriptor pool and pass in pool size
-    VkDescriptorPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = imageCount;
-
-    // Attempt to create descriptor pool
-    if (vkCreateDescriptorPool(vulkanDevice->getLogicalDevice(), &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create descriptor pool.");
-    }
-}
-
-void Renderer::createDescriptorSets() {
-    // Get image count from swapchain
-    size_t imageCount = vulkanSwapchain->getImageCount();
-
-    // Ensure that descriptor sets is the correct size
-    descriptorSets.resize(imageCount);
-
-    // Get descriptor set layouts
-    std::vector<VkDescriptorSetLayout> layouts(imageCount, descriptorSetLayout);
-
-    // Set parameters for allocating descriptor sets
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(imageCount);
-    allocInfo.pSetLayouts = layouts.data();
-
-    // Attempt to allocate descriptor sets
-    if (vkAllocateDescriptorSets(vulkanDevice->getLogicalDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate descriptor sets.");
-    }
-
-    // Configure the descriptor to point to images
-    for (size_t i = 0; i < imageCount; i++) {
-        // Set parameters for descriptor buffer
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uboBuffer->getHandle();
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
-
-        // Set parameters for writing descriptor set
-        VkWriteDescriptorSet descriptorWrite{};
-        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.dstSet = descriptorSets[i];
-        descriptorWrite.dstBinding = 0;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
-
-        // Update descriptor sets
-        vkUpdateDescriptorSets(vulkanDevice->getLogicalDevice(), 1, &descriptorWrite, 0, nullptr);
-    }
 }
 
 // --- Frame execution ---
@@ -689,7 +598,8 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
     // Bind descriptor sets to command buffer
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
+    VkDescriptorSet currentDescriptorSet = vulkanSwapchain->getDescriptorSet(imageIndex);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &currentDescriptorSet, 0, nullptr);
 
     // Bind geometry buffers to command buffer
     VkBuffer vertexBuffers[] = { vertexBuffer->getHandle() };
