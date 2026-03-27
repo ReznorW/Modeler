@@ -23,6 +23,7 @@ public:
     // Getters
     GLFWwindow* getHandle() { return window; }
     void getFramebufferSize(int* width, int* height);
+    VkExtent2D getExtent();
 
     // Setters
     void setShouldClose(bool value) { glfwSetWindowShouldClose(window, value ? GLFW_TRUE : GLFW_FALSE); }

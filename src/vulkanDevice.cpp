@@ -1,8 +1,9 @@
-#include "VulkanDevice.hpp"
 #include <stdexcept>
 #include <set>
 #include <string>
 #include <iostream>
+
+#include "vulkanDevice.hpp"
 
 VulkanDevice::VulkanDevice(VkInstance instance, VkSurfaceKHR surface) {
     pickPhysicalDevice(instance, surface);
@@ -35,6 +36,20 @@ SwapChainSupportDetails VulkanDevice::querySwapChainSupport(VkPhysicalDevice dev
     }
 
     return details;
+}
+
+uint32_t VulkanDevice::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    // Get device memory properties
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+    // Find a suitable memory type
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    throw std::runtime_error("Failed to find suitable memory type.");
 }
 
 void VulkanDevice::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {

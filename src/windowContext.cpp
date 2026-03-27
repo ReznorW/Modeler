@@ -13,6 +13,18 @@ WindowContext::~WindowContext() {
     glfwTerminate();
 }
 
+VkExtent2D WindowContext::getExtent() {
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    VkExtent2D extent = {
+        static_cast<uint32_t>(width),
+        static_cast<uint32_t>(height)
+    };
+
+    return extent;
+}
+
 void WindowContext::initInput(Renderer* renderer) {
     glfwSetWindowUserPointer(window, renderer);
 
@@ -35,7 +47,7 @@ void WindowContext::initInput(Renderer* renderer) {
                 float b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
                 
                 app->addCube(glm::vec3(x, y, z), 0.5f, glm::vec3(r, g, b));
-                //std::cout << "Cube added! Total vertices: " << app->vertices.size() << std::endl;
+                std::cout << "Cube added!" << std::endl;
             }
 
             // Clear screen

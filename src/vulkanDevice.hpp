@@ -1,5 +1,7 @@
 #pragma once
+
 #include <vulkan/vulkan.h>
+
 #include <vector>
 #include <optional>
 #include <cstdint>
@@ -33,6 +35,7 @@ public:
     QueueFamilyIndices getIndices() { return indices; }
 
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
 private:
     const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};

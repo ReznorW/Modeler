@@ -9,6 +9,7 @@
 
 #include "windowContext.hpp"
 #include "vulkanDevice.hpp"
+#include "vulkanSwapchain.hpp"
 
 struct Vertex {
     glm::vec3 pos;
@@ -47,8 +48,6 @@ private:
 
     // Device
     std::unique_ptr<VulkanDevice> vulkanDevice;
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkDevice device;
 
     // Queues
     VkQueue graphicsQueue;
@@ -87,17 +86,7 @@ private:
     VkRenderPass renderPass;
 
     // Swapchain
-    std::vector<VkImage> swapChainImages;
-    std::vector<VkImageView> swapChainImageViews;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
-    VkSwapchainKHR swapChain;
-    VkExtent2D swapChainExtent;
-    VkFormat swapChainImageFormat;
-
-    // Depth image
-    VkImage depthImage;
-    VkDeviceMemory depthImageMemory;
-    VkImageView depthImageView;
+    std::unique_ptr<VulkanSwapchain> vulkanSwapchain;
 
     // Object vectors
     std::vector<Vertex> vertices;
@@ -115,25 +104,15 @@ private:
 
     // Infrastructure set up
     void createInstance();
-    void createSurface();
     void createCommandPool();
     void createSyncObjects();
     void createDescriptorSetLayout();
 
-    // Swapchain
-    void createSwapChain();
-    void createImageViews();
+    // Render pass
     void createRenderPass();
-    void createGraphicsPipeline();
-    void createDepthResources();
-    void createFramebuffers();
-    void recreateSwapChain();
-    void cleanupSwapChain();
 
-    // SwapChain helpers
-    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+    // Graphics pipeline
+    void createGraphicsPipeline();
 
     // GPU resources
     void createGeoBuffers();
@@ -144,9 +123,6 @@ private:
     // GPU resource helpers
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
     void copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size);
-    void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
     // Frame execution
     void drawFrame();
