@@ -5,19 +5,33 @@
 
 #include "vulkanDevice.hpp"
 
-VulkanDevice::VulkanDevice(VkInstance instance, VkSurfaceKHR surface) {
+VulkanDevice::VulkanDevice(WindowContext& window)
+    : window(window) {
+
+    createInstance();
+    window.createSurface(instance, &surface);
     pickPhysicalDevice(instance, surface);
     createLogicalDevice(surface);
     createCommandPool();
     createCommandBuffer();
+    createSyncObjects();
 }
 
 VulkanDevice::~VulkanDevice() {
+    // Clean up sync objects
+    vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+    vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+    vkDestroyFence(device, inFlightFence, nullptr);
+
     // Clean up command pool
     vkDestroyCommandPool(device, commandPool, nullptr);
     
     // Clean up device
     vkDestroyDevice(device, nullptr);
+
+    // Clean up surface and instance
+    vkDestroySurfaceKHR(instance, surface, nullptr);
+    vkDestroyInstance(instance, nullptr);
 }
 
 SwapChainSupportDetails VulkanDevice::querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
@@ -140,6 +154,52 @@ void VulkanDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceS
 
     // Clean up temporary command buffer
     vkFreeCommandBuffers(device, commandPool, 1, &tempCommandBuffer);
+}
+
+void VulkanDevice::createInstance() {
+    // Set up application information/background
+    VkApplicationInfo appInfo{};
+    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    appInfo.pApplicationName = "Renderer";
+    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.pEngineName = "Vector";
+    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.apiVersion = VK_API_VERSION_1_3;
+
+    // Get the required Vulkan extensions for GLFW
+    uint32_t glfwExtensionCount = 0;
+    const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+    // Set up parameters for a new Vulkan instance
+    VkInstanceCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    createInfo.pApplicationInfo = &appInfo;
+    createInfo.enabledExtensionCount = glfwExtensionCount;
+    createInfo.ppEnabledExtensionNames = glfwExtensions;
+    createInfo.enabledLayerCount = 0;
+
+    // Attempt to create the new Vulkan instance
+    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan instance.");
+    }
+}
+
+void VulkanDevice::createSyncObjects() {
+    // Set parameters for semaphore
+    VkSemaphoreCreateInfo semaphoreInfo{};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    // Set parameters for fence
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    // Attempt to create semaphores and fence
+    if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
+        vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS ||
+        vkCreateFence(device, &fenceInfo, nullptr, &inFlightFence) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create synchronization objects for a frame.");
+    }
 }
 
 void VulkanDevice::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {

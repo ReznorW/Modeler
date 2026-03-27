@@ -23,32 +23,23 @@ private:
     // --- Globals ---
     // Window
     WindowContext window{WIDTH, HEIGHT, "VulkanCAD"};
-    
-    // Instance
-    VkInstance instance;
-    VkSurfaceKHR surface;
 
     // Device
     std::unique_ptr<VulkanDevice> vulkanDevice;
 
-    // Sync objects
-    VkSemaphore imageAvailableSemaphore;
-    VkSemaphore renderFinishedSemaphore;
-    VkFence inFlightFence;
+    // Pipeline
+    std::unique_ptr<VulkanPipeline> vulkanPipeline;
+
+    // Swapchain
+    std::unique_ptr<VulkanSwapchain> vulkanSwapchain;
+
+    // Render pass
+    VkRenderPass renderPass;
 
     // Buffers
     std::unique_ptr<VulkanBuffer> vertexBuffer;
     std::unique_ptr<VulkanBuffer> indexBuffer;
     std::unique_ptr<VulkanBuffer> uboBuffer;
-
-    // Pipeline
-    std::unique_ptr<VulkanPipeline> vulkanPipeline;
-
-    // Render pass
-    VkRenderPass renderPass;
-
-    // Swapchain
-    std::unique_ptr<VulkanSwapchain> vulkanSwapchain;
 
     // Object vectors
     std::vector<Vertex> vertices;
@@ -63,10 +54,6 @@ private:
     void initVulkan();
     void mainLoop();
     void cleanup();
-
-    // Infrastructure set up
-    void createInstance();
-    void createSyncObjects();
 
     // Render pass
     void createRenderPass();

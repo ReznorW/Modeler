@@ -69,15 +69,11 @@ void Renderer::initVulkan() {
     // Initialize input
     window.initInput(this);
 
-    // Create vulkan instance and surface
-    createInstance();
-    window.createSurface(instance, &surface);
-
     // Initialize hardware
-    vulkanDevice = std::make_unique<VulkanDevice>(instance, surface);
+    vulkanDevice = std::make_unique<VulkanDevice>(window);
 
     // Initialize swapchain
-    vulkanSwapchain = std::make_unique<VulkanSwapchain>(*vulkanDevice, surface, window.getExtent());
+    vulkanSwapchain = std::make_unique<VulkanSwapchain>(*vulkanDevice, vulkanDevice->getSurface(), window.getExtent());
 
     createRenderPass();
     vulkanPipeline = std::make_unique<VulkanPipeline>(*vulkanDevice, renderPass, vulkanSwapchain->getDescriptorSetLayout(), "shaders/vert.spv", "shaders/frag.spv");
@@ -85,7 +81,6 @@ void Renderer::initVulkan() {
     createGeoBuffers();
     createUniformBuffers();
     vulkanSwapchain->createDescriptorSets(uboBuffer->getHandle());
-    createSyncObjects();
 }
 
 void Renderer::mainLoop() {
@@ -113,65 +108,6 @@ void Renderer::cleanup() {
 
     // Clean up render pass
     vkDestroyRenderPass(device, renderPass, nullptr);
-
-    // Clean up sync objects
-    vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
-    vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
-    vkDestroyFence(device, inFlightFence, nullptr);
-
-    // Clean up surface and instance
-    vkDestroySurfaceKHR(instance, surface, nullptr);
-    vkDestroyInstance(instance, nullptr);
-}
-
-// --- Infrastructure set up ---
-void Renderer::createInstance() {
-    // Set up application information/background
-    VkApplicationInfo appInfo{};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "Renderer";
-    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "Vector";
-    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_3;
-
-    // Get the required Vulkan extensions for GLFW
-    uint32_t glfwExtensionCount = 0;
-    const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-    // Set up parameters for a new Vulkan instance
-    VkInstanceCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.pApplicationInfo = &appInfo;
-    createInfo.enabledExtensionCount = glfwExtensionCount;
-    createInfo.ppEnabledExtensionNames = glfwExtensions;
-    createInfo.enabledLayerCount = 0;
-
-    // Attempt to create the new Vulkan instance
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan instance.");
-    }
-}
-
-void Renderer::createSyncObjects() {
-    // Get device
-    VkDevice device = vulkanDevice->getLogicalDevice();
-
-    // Set parameters for semaphore
-    VkSemaphoreCreateInfo semaphoreInfo{};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    // Set parameters for fence
-    VkFenceCreateInfo fenceInfo{};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    // Attempt to create semaphores and fence
-    if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-        vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS ||
-        vkCreateFence(device, &fenceInfo, nullptr, &inFlightFence) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create synchronization objects for a frame.");
-    }
 }
 
 void Renderer::createRenderPass() {
@@ -273,6 +209,7 @@ void Renderer::drawFrame() {
     VkDevice device = vulkanDevice->getLogicalDevice();
 
     // Wait for sync objects
+    VkFence inFlightFence = vulkanDevice->getInFlightFence();
     vkWaitForFences(device, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
 
     // Update buffers if geometry is dirty
@@ -286,10 +223,10 @@ void Renderer::drawFrame() {
 
     // Get next image to write to
     uint32_t imageIndex;
-    VkResult result = vkAcquireNextImageKHR(device, vulkanSwapchain->getHandle(), UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    VkResult result = vkAcquireNextImageKHR(device, vulkanSwapchain->getHandle(), UINT64_MAX, vulkanDevice->getImageAvailableSemaphore(), VK_NULL_HANDLE, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        vulkanSwapchain->recreate(surface, window.getExtent(), renderPass);
+        vulkanSwapchain->recreate(vulkanDevice->getSurface(), window.getExtent(), renderPass);
         return;
     }
 
@@ -301,8 +238,8 @@ void Renderer::drawFrame() {
     recordCommandBuffer(commandBuffer, imageIndex);
 
     // Send command buffer to queue
-    VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
-    VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+    VkSemaphore waitSemaphores[] = { vulkanDevice->getImageAvailableSemaphore() };
+    VkSemaphore signalSemaphores[] = { vulkanDevice->getRenderFinishedSemaphore() };
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -333,7 +270,7 @@ void Renderer::drawFrame() {
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR || window.wasResized()) {
         window.resetResizeFlag();
-        vulkanSwapchain->recreate(surface, window.getExtent(), renderPass);
+        vulkanSwapchain->recreate(vulkanDevice->getSurface(), window.getExtent(), renderPass);
     }
 }
 

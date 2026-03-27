@@ -6,6 +6,8 @@
 #include <optional>
 #include <cstdint>
 
+#include "windowContext.hpp"
+
 // --- Structs ---
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
@@ -21,13 +23,18 @@ struct SwapChainSupportDetails {
 
 class VulkanDevice {
 public:
-    VulkanDevice(VkInstance instance, VkSurfaceKHR surface);
+    VulkanDevice(WindowContext& window);
     ~VulkanDevice();
 
     // Prevent duplicates
     VulkanDevice(const VulkanDevice&) = delete;
     VulkanDevice& operator=(const VulkanDevice&) = delete;
 
+    VkInstance getInstance() const { return instance; }
+    VkSurfaceKHR getSurface() const { return surface; }
+    VkSemaphore getImageAvailableSemaphore() const { return imageAvailableSemaphore; }
+    VkSemaphore getRenderFinishedSemaphore() const { return renderFinishedSemaphore; }
+    VkFence getInFlightFence() const { return inFlightFence; }
     VkPhysicalDevice getPhysicalDevice() { return physicalDevice; }
     VkDevice getLogicalDevice() { return device; }
     VkQueue getGraphicsQueue() { return graphicsQueue; }
@@ -43,6 +50,11 @@ public:
 private:
     const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
+    WindowContext& window;
+
+    VkInstance instance;
+    VkSurfaceKHR surface;
+
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
 
@@ -53,6 +65,13 @@ private:
     VkCommandPool commandPool;
     VkCommandBuffer commandBuffer;
 
+    // Sync objects
+    VkSemaphore imageAvailableSemaphore;
+    VkSemaphore renderFinishedSemaphore;
+    VkFence inFlightFence;
+
+    void createInstance();
+    void createSyncObjects();
     void pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
     void createLogicalDevice(VkSurfaceKHR surface);
     void createCommandPool();
