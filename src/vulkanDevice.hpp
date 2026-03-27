@@ -33,9 +33,12 @@ public:
     VkQueue getGraphicsQueue() { return graphicsQueue; }
     VkQueue getPresentQueue() { return presentQueue; }
     QueueFamilyIndices getIndices() { return indices; }
+    VkCommandBuffer getCommandBuffer() const { return commandBuffer; }
 
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size);
 
 private:
     const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
@@ -47,8 +50,13 @@ private:
     VkQueue graphicsQueue;
     VkQueue presentQueue;
 
+    VkCommandPool commandPool;
+    VkCommandBuffer commandBuffer;
+
     void pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
     void createLogicalDevice(VkSurfaceKHR surface);
+    void createCommandPool();
+    void createCommandBuffer();
     
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
 };

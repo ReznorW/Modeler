@@ -8,9 +8,15 @@
 VulkanDevice::VulkanDevice(VkInstance instance, VkSurfaceKHR surface) {
     pickPhysicalDevice(instance, surface);
     createLogicalDevice(surface);
+    createCommandPool();
+    createCommandBuffer();
 }
 
 VulkanDevice::~VulkanDevice() {
+    // Clean up command pool
+    vkDestroyCommandPool(device, commandPool, nullptr);
+    
+    // Clean up device
     vkDestroyDevice(device, nullptr);
 }
 
@@ -50,6 +56,90 @@ uint32_t VulkanDevice::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
         }
     }
     throw std::runtime_error("Failed to find suitable memory type.");
+}
+
+void VulkanDevice::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+    // Set parameters for buffer
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    // Attempt to create buffer
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create buffer.");
+    }
+
+    // Get memory requirements
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
+
+    // Set parameters for memory allocation
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+    // Attempt to allocate buffer memory
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate buffer memory.");
+    }
+
+    // Attempt to bind buffer to device
+    if (vkBindBufferMemory(device, buffer, bufferMemory, 0) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to bind buffer to device.");
+    }
+}
+
+void VulkanDevice::copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size) {
+    // Set parameters for command buffer
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    // Attempt to create temporary command buffer
+    VkCommandBuffer tempCommandBuffer;
+    if (vkAllocateCommandBuffers(device, &allocInfo, &tempCommandBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate temporary command buffer.");
+    }
+
+    // Set parameters for command buffer to begin
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    // Attempt to begin recording command buffer
+    if (vkBeginCommandBuffer(tempCommandBuffer, &beginInfo) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to begin recording temporary command buffer.");
+    }
+
+    // Set parameters for the region to copy from srcBuffer to destBuffer
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0;
+    copyRegion.dstOffset = 0;
+    copyRegion.size = size;
+
+    // Copy srcBuffer to destBuffer
+    vkCmdCopyBuffer(tempCommandBuffer, srcBuffer, destBuffer, 1, &copyRegion);
+
+    // End recording of command buffer
+    vkEndCommandBuffer(tempCommandBuffer);
+
+    // Set parameters for submitting command buffer to queue
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &tempCommandBuffer;
+
+    // Submit command buffer to queue
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+
+    // Clean up temporary command buffer
+    vkFreeCommandBuffers(device, commandPool, 1, &tempCommandBuffer);
 }
 
 void VulkanDevice::pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
@@ -141,6 +231,33 @@ void VulkanDevice::createLogicalDevice(VkSurfaceKHR surface) {
     // Get queue handles from new device
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+}
+
+void VulkanDevice::createCommandPool() {
+    // Set parameters for command pool
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
+
+    // Attempt to create command pool
+    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create command pool.");
+    }
+}
+
+void VulkanDevice::createCommandBuffer() {
+    // Set parameters for command buffer and pass in command pool
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1;
+
+    // Attempt to create command buffer
+    if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate command buffers.");
+    }
 }
 
 QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {

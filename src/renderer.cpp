@@ -111,12 +111,10 @@ void Renderer::initVulkan() {
     createDescriptorSetLayout();
     createGraphicsPipeline();
     vulkanSwapchain->createFramebuffers(renderPass);
-    createCommandPool();
     createGeoBuffers();
     createUniformBuffers();
     createDescriptorPool();
     createDescriptorSets();
-    createCommandBuffer();
     createSyncObjects();
 }
 
@@ -148,27 +146,14 @@ void Renderer::cleanup() {
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
 
-    // Clean up buffers and memory
-    vkDestroyBuffer(device, uboBuffer, nullptr);
-    vkFreeMemory(device, uboBufferMemory, nullptr);
+    // Clean up descriptor resources
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-    vkDestroyBuffer(device, indexBuffer, nullptr);
-    vkFreeMemory(device, indexBufferMemory, nullptr);
-    vkDestroyBuffer(device, vertexBuffer, nullptr);
-    vkFreeMemory(device, vertexBufferMemory, nullptr);
-    vkDestroyBuffer(device, stagingVertexBuffer, nullptr);
-    vkFreeMemory(device, stagingVertexBufferMemory, nullptr);
-    vkDestroyBuffer(device, stagingIndexBuffer, nullptr);
-    vkFreeMemory(device, stagingIndexBufferMemory, nullptr);
 
     // Clean up sync objects
     vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
     vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
     vkDestroyFence(device, inFlightFence, nullptr);
-
-    // Clean up command pool
-    vkDestroyCommandPool(device, commandPool, nullptr);
 
     // Clean up surface and instance
     vkDestroySurfaceKHR(instance, surface, nullptr);
@@ -201,22 +186,6 @@ void Renderer::createInstance() {
     // Attempt to create the new Vulkan instance
     if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create Vulkan instance.");
-    }
-}
-
-void Renderer::createCommandPool() {
-    // Get queue family indices
-    QueueFamilyIndices queueFamilyIndices = vulkanDevice->getIndices();
-
-    // Set parameters for command pool
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-
-    // Attempt to create command pool
-    if (vkCreateCommandPool(vulkanDevice->getLogicalDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create command pool.");
     }
 }
 
@@ -468,20 +437,18 @@ void Renderer::createGraphicsPipeline() {
 void Renderer::createGeoBuffers() {
     // Create Vertex Staging and Device Local
     VkDeviceSize vertexBufferSize = sizeof(Vertex) * MAX_VERTEX_COUNT;
-    createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingVertexBuffer, stagingVertexBufferMemory);
-    createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+    vertexBuffer = std::make_unique<VulkanBuffer>(*vulkanDevice, vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     // Create Index Staging and Device Local
     VkDeviceSize indexBufferSize = sizeof(uint32_t) * MAX_INDEX_COUNT;
-    createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingIndexBuffer, stagingIndexBufferMemory);
-    createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+    indexBuffer = std::make_unique<VulkanBuffer>(*vulkanDevice, indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 }
 
 void Renderer::createUniformBuffers() {
     // Create Uniform Buffer Object and pointer
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-    createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uboBuffer, uboBufferMemory);
-    vkMapMemory(vulkanDevice->getLogicalDevice(), uboBufferMemory, 0, bufferSize, 0, &uboMapped);
+    uboBuffer = std::make_unique<VulkanBuffer>(*vulkanDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    uboBuffer->map();
 }
 
 void Renderer::createDescriptorPool() {
@@ -532,7 +499,7 @@ void Renderer::createDescriptorSets() {
     for (size_t i = 0; i < imageCount; i++) {
         // Set parameters for descriptor buffer
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uboBuffer;
+        bufferInfo.buffer = uboBuffer->getHandle();
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(UniformBufferObject);
 
@@ -548,94 +515,6 @@ void Renderer::createDescriptorSets() {
         // Update descriptor sets
         vkUpdateDescriptorSets(vulkanDevice->getLogicalDevice(), 1, &descriptorWrite, 0, nullptr);
     }
-}
-
-// --- GPU resources helpers ---
-void Renderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
-    // Get device
-    VkDevice device = vulkanDevice->getLogicalDevice();
-
-    // Set parameters for buffer
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    // Attempt to create buffer
-    if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create buffer.");
-    }
-
-    // Get memory requirements
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
-
-    // Set parameters for memory allocation
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = vulkanDevice->findMemoryType(memRequirements.memoryTypeBits, properties);
-
-    // Attempt to allocate buffer memory
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate buffer memory.");
-    }
-
-    // Attempt to bind buffer to device
-    if (vkBindBufferMemory(device, buffer, bufferMemory, 0) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to bind buffer to device.");
-    }
-}
-
-void Renderer::copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size) {
-    // Set parameters for command buffer
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = commandPool;
-    allocInfo.commandBufferCount = 1;
-
-    // Attempt to create temporary command buffer
-    VkCommandBuffer tempCommandBuffer;
-    if (vkAllocateCommandBuffers(vulkanDevice->getLogicalDevice(), &allocInfo, &tempCommandBuffer) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate temporary command buffer.");
-    }
-
-    // Set parameters for command buffer to begin
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    // Attempt to begin recording command buffer
-    if (vkBeginCommandBuffer(tempCommandBuffer, &beginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to begin recording temporary command buffer.");
-    }
-
-    // Set parameters for the region to copy from srcBuffer to destBuffer
-    VkBufferCopy copyRegion{};
-    copyRegion.srcOffset = 0;
-    copyRegion.dstOffset = 0;
-    copyRegion.size = size;
-
-    // Copy srcBuffer to destBuffer
-    vkCmdCopyBuffer(tempCommandBuffer, srcBuffer, destBuffer, 1, &copyRegion);
-
-    // End recording of command buffer
-    vkEndCommandBuffer(tempCommandBuffer);
-
-    // Set parameters for submitting command buffer to queue
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &tempCommandBuffer;
-
-    // Submit command buffer to queue
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(graphicsQueue);
-
-    // Clean up temporary command buffer
-    vkFreeCommandBuffers(vulkanDevice->getLogicalDevice(), commandPool, 1, &tempCommandBuffer);
 }
 
 // --- Frame execution ---
@@ -670,6 +549,9 @@ void Renderer::drawFrame() {
         vulkanSwapchain->recreate(surface, window.getExtent(), renderPass);
         return;
     }
+
+    // Get commandbuffer
+    VkCommandBuffer commandBuffer = vulkanDevice->getCommandBuffer();
 
     // Reset and begin to record command buffer
     vkResetCommandBuffer(commandBuffer, 0);
@@ -734,41 +616,25 @@ void Renderer::updateUniformBuffer() {
     ubo.proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1; // Flip Y axis bc Vulkan
 
-    memcpy(uboMapped, &ubo, sizeof(ubo));
+    uboBuffer->writeToBuffer(&ubo);
 }
 
 void Renderer::updateGpuBuffers() {
     if (vertices.empty()) return;
 
-    // Get device
-    VkDevice device = vulkanDevice->getLogicalDevice();
+    // Update vertex buffer
+    VkDeviceSize vertexSize = sizeof(Vertex) * vertices.size();
+    VulkanBuffer vertexStaging{*vulkanDevice, vertexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+    vertexStaging.map();
+    vertexStaging.writeToBuffer(vertices.data());
+    vulkanDevice->copyBuffer(vertexStaging.getHandle(), vertexBuffer->getHandle(), vertexSize);
 
-    // Upload Vertices
-    void* data;
-    vkMapMemory(device, stagingVertexBufferMemory, 0, sizeof(Vertex) * vertices.size(), 0, &data);
-    memcpy(data, vertices.data(), (size_t)sizeof(Vertex) * vertices.size());
-    vkUnmapMemory(device, stagingVertexBufferMemory);
-    copyBuffer(stagingVertexBuffer, vertexBuffer, sizeof(Vertex) * vertices.size());
-
-    // Upload Indices
-    vkMapMemory(device, stagingIndexBufferMemory, 0, sizeof(uint32_t) * indices.size(), 0, &data);
-    memcpy(data, indices.data(), (size_t)sizeof(uint32_t) * indices.size());
-    vkUnmapMemory(device, stagingIndexBufferMemory);
-    copyBuffer(stagingIndexBuffer, indexBuffer, sizeof(uint32_t) * indices.size());
-}
-
-void Renderer::createCommandBuffer() {
-    // Set parameters for command buffer and pass in command pool
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = commandPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 1;
-
-    // Attempt to create command buffer
-    if (vkAllocateCommandBuffers(vulkanDevice->getLogicalDevice(), &allocInfo, &commandBuffer) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate command buffers.");
-    }
+    // Update index buffer
+    VkDeviceSize indexSize = sizeof(Vertex) * vertices.size();
+    VulkanBuffer indexStaging{*vulkanDevice, indexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+    indexStaging.map();
+    indexStaging.writeToBuffer(indices.data());
+    vulkanDevice->copyBuffer(indexStaging.getHandle(), indexBuffer->getHandle(), indexSize);
 }
 
 void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
@@ -826,10 +692,10 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
 
     // Bind geometry buffers to command buffer
-    VkBuffer vertexBuffers[] = {vertexBuffer};
+    VkBuffer vertexBuffers[] = { vertexBuffer->getHandle() };
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(commandBuffer, indexBuffer->getHandle(), 0, VK_INDEX_TYPE_UINT32);
 
     // Pass in indices for draw order
     if (!indices.empty()) {

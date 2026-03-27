@@ -10,6 +10,7 @@
 #include "windowContext.hpp"
 #include "vulkanDevice.hpp"
 #include "vulkanSwapchain.hpp"
+#include "vulkanBuffer.hpp"
 
 struct Vertex {
     glm::vec3 pos;
@@ -53,27 +54,17 @@ private:
     VkQueue graphicsQueue;
     VkQueue presentQueue;
 
-    // Command pool
-    VkCommandPool commandPool;
-    VkCommandBuffer commandBuffer;
-
     // Sync objects
     VkSemaphore imageAvailableSemaphore;
     VkSemaphore renderFinishedSemaphore;
     VkFence inFlightFence;
 
-    // Buffers and memory
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
-    VkBuffer stagingVertexBuffer;
-    VkDeviceMemory stagingVertexBufferMemory;
-    VkBuffer indexBuffer;
-    VkDeviceMemory indexBufferMemory;
-    VkBuffer stagingIndexBuffer;
-    VkDeviceMemory stagingIndexBufferMemory;
-    VkBuffer uboBuffer;
-    void* uboMapped;
-    VkDeviceMemory uboBufferMemory;
+    // Buffers
+    std::unique_ptr<VulkanBuffer> vertexBuffer;
+    std::unique_ptr<VulkanBuffer> indexBuffer;
+    std::unique_ptr<VulkanBuffer> uboBuffer;
+
+    // Descriptor resources
     VkDescriptorSetLayout descriptorSetLayout;
     VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
@@ -82,7 +73,7 @@ private:
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
 
-    // Render Pass
+    // Render pass
     VkRenderPass renderPass;
 
     // Swapchain
@@ -104,7 +95,6 @@ private:
 
     // Infrastructure set up
     void createInstance();
-    void createCommandPool();
     void createSyncObjects();
     void createDescriptorSetLayout();
 
@@ -120,15 +110,10 @@ private:
     void createDescriptorPool();
     void createDescriptorSets();
 
-    // GPU resource helpers
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-    void copyBuffer(VkBuffer srcBuffer, VkBuffer destBuffer, VkDeviceSize size);
-
     // Frame execution
     void drawFrame();
     void updateUniformBuffer();
     void updateGpuBuffers();
-    void createCommandBuffer();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
     // Utils

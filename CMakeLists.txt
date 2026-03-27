@@ -37,6 +37,8 @@ add_executable(VulkanCAD
     src/vulkanDevice.hpp
     src/vulkanSwapChain.cpp
     src/vulkanSwapChain.hpp
+    src/vulkanBuffer.cpp
+    src/vulkanBuffer.hpp
     ${IMGUI_SOURCES}
 )
 
