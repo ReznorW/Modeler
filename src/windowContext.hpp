@@ -2,8 +2,11 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
 #include <string>
 #include <vector>
+
+#include "inputState.hpp"
 
 class Renderer;
 
@@ -32,7 +35,9 @@ public:
     VkResult createSurface(VkInstance instance, VkSurfaceKHR* surface);
 
     // Input
-    void initInput(Renderer* renderer);
+    void updateInput() { inputState.update(window); }
+    void resetInput() { inputState.reset(); }
+    InputState& getInput() { return inputState; }
 
     // Resize flag
     bool wasResized() { return framebufferResized; }
@@ -40,6 +45,7 @@ public:
 
 private:
     GLFWwindow* window;
+    InputState inputState;
     int width;
     int height;
     std::string windowName;

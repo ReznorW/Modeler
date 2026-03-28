@@ -66,9 +66,6 @@ void Renderer::clearGeometry() {
 // === Private functions ===
 // --- Core Lifecycle ---
 void Renderer::initVulkan() {
-    // Initialize input
-    window.initInput(this);
-
     // Initialize hardware
     vulkanDevice = std::make_unique<VulkanDevice>(window);
 
@@ -87,6 +84,13 @@ void Renderer::mainLoop() {
     while (!window.shouldClose()) {
         // Poll input
         window.pollEvents();
+
+        // Process input
+        window.updateInput();
+        input.update(window, camera, *this);
+
+        // Update camera
+        camera.updateMatrices(vulkanSwapchain->getExtentAspectRatio());
 
         // Update cube position
         updateUniformBuffer();
@@ -275,25 +279,10 @@ void Renderer::drawFrame() {
 }
 
 void Renderer::updateUniformBuffer() {
-    float width = static_cast<float>(vulkanSwapchain->getExtent().width);
-    float height = static_cast<float>(vulkanSwapchain->getExtent().height);
-    if (width <= 0.0f || height <= 0.0f) {
-        return; 
-    }
-    float aspect = width / height;
-
-    static auto startTime = std::chrono::high_resolution_clock::now();
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
     UniformBufferObject ubo{};
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)); // Z
-    model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // Y
-    model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f)); // X
-    ubo.model = model;
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 10.0f);
+    ubo.model = glm::mat4(1.0f);
+    ubo.view = camera.getView();
+    ubo.proj = camera.getProjection();
     ubo.proj[1][1] *= -1; // Flip Y axis bc Vulkan
 
     uboBuffer->writeToBuffer(&ubo);
@@ -310,7 +299,7 @@ void Renderer::updateGpuBuffers() {
     vulkanDevice->copyBuffer(vertexStaging.getHandle(), vertexBuffer->getHandle(), vertexSize);
 
     // Update index buffer
-    VkDeviceSize indexSize = sizeof(Vertex) * vertices.size();
+    VkDeviceSize indexSize = sizeof(uint32_t) * indices.size();
     VulkanBuffer indexStaging{*vulkanDevice, indexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
     indexStaging.map();
     indexStaging.writeToBuffer(indices.data());

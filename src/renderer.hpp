@@ -5,6 +5,8 @@
 #include "vulkanSwapchain.hpp"
 #include "vulkanBuffer.hpp"
 #include "vulkanPipeline.hpp"
+#include "camera.hpp"
+#include "input.hpp"
 
 class Renderer {
 public: 
@@ -23,6 +25,9 @@ private:
     // --- Globals ---
     // Window
     WindowContext window{WIDTH, HEIGHT, "VulkanCAD"};
+
+    // Input
+    Input input;
 
     // Device
     std::unique_ptr<VulkanDevice> vulkanDevice;
@@ -44,6 +49,9 @@ private:
     // Object vectors
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
+
+    // Camera
+    Camera camera;
 
     // Flags
     bool dirtyGeo = true;

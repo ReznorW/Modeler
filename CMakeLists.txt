@@ -41,6 +41,11 @@ add_executable(VulkanCAD
     src/vulkanBuffer.hpp
     src/vulkanPipeline.cpp
     src/vulkanPipeline.hpp
+    src/camera.cpp
+    src/camera.hpp
+    src/input.cpp
+    src/input.hpp
+    src/inputState.hpp
     ${IMGUI_SOURCES}
 )
 

@@ -26,6 +26,7 @@ public:
     VkSwapchainKHR getHandle() { return swapChain; }
     VkFormat getFormat() { return swapChainImageFormat; }
     VkExtent2D getExtent() { return swapChainExtent; }
+    float getExtentAspectRatio() const { return static_cast<float>(swapChainExtent.width) / static_cast<float>(swapChainExtent.height); }
     VkFramebuffer getFramebuffer(uint32_t index) { return swapChainFramebuffers[index]; }
     size_t getImageCount() { return swapChainImages.size(); }
     VkDescriptorSetLayout getDescriptorSetLayout() { return descriptorSetLayout; }

@@ -3,6 +3,14 @@
 #include <stdexcept>
 #include <iostream>
 
+// --- Callbacks ---
+void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+    auto w = reinterpret_cast<WindowContext*>(glfwGetWindowUserPointer(window));
+    if (w) {
+        w->getInput().scrollY = yoffset;
+    }
+}
+
 WindowContext::WindowContext(int w, int h, const std::string& name) 
     : width(w), height(h), windowName(name) {
     initWindow();
@@ -25,44 +33,6 @@ VkExtent2D WindowContext::getExtent() {
     return extent;
 }
 
-void WindowContext::initInput(Renderer* renderer) {
-    glfwSetWindowUserPointer(window, renderer);
-
-    glfwSetWindowCloseCallback(window, [](GLFWwindow* w) {
-        glfwSetWindowShouldClose(w, GLFW_TRUE);
-    });
-
-    glfwSetKeyCallback(window, [](GLFWwindow* w, int key, int scancode, int action, int mods) {
-        auto app = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(w));
-
-        if (action == GLFW_PRESS) {
-            // Spawn random cube
-            if (key == GLFW_KEY_A) {
-                float x = (rand() % 10 - 5) / 2.0f;
-                float y = (rand() % 10 - 5) / 2.0f;
-                float z = (rand() % 10 - 5) / 2.0f;
-
-                float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-                float g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-                float b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-                
-                app->addCube(glm::vec3(x, y, z), 0.5f, glm::vec3(r, g, b));
-                std::cout << "Cube added!" << std::endl;
-            }
-
-            // Clear screen
-            if (key == GLFW_KEY_C) {
-                app->clearGeometry();
-            }
-
-            // Close program
-            if (key == GLFW_KEY_ESCAPE) {
-                glfwSetWindowShouldClose(w, GLFW_TRUE);
-            }
-        }
-    });
-}
-
 void WindowContext::initWindow() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -71,6 +41,7 @@ void WindowContext::initWindow() {
     
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    glfwSetScrollCallback(window, scrollCallback);
 }
 
 void WindowContext::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
