@@ -20,13 +20,15 @@ public:
 
     const glm::mat4& getProjection() const { return projectionMatrix; }
     const glm::mat4& getView() const { return viewMatrix; }
+    glm::vec3 getPosition() const { return position; }
 
 private:
     glm::mat4 projectionMatrix{1.0f};
     glm::mat4 viewMatrix{1.0f};
 
     glm::vec3 target{0.0f, 0.0f, 0.0f};
+    glm::vec3 position;
     float distance = 10.0f;
-    float azimuth = glm::radians(45.0f);    // Left/Right
+    float azimuth = glm::radians(-45.0f);   // Left/Right
     float polar = glm::radians(135.0f);     // Up/Down
 };

@@ -25,27 +25,64 @@ void Renderer::addCube(glm::vec3 center, float size, glm::vec3 color) {
     float s = size / 2.0f;
     uint32_t startIndex = static_cast<uint32_t>(vertices.size());
 
+    // Initialize surface normals
+    glm::vec3 nUp(0.0f, -1.0f, 0.0f);
+    glm::vec3 nDown(0.0f, 1.0f, 0.0f);
+    glm::vec3 nFront(0.0f, 0.0f, 1.0f);
+    glm::vec3 nBack(0.0f, 0.0f, -1.0f);
+    glm::vec3 nRight(1.0f, 0.0f, 0.0f);
+    glm::vec3 nLeft(-1.0f, 0.0f, 0.0f);
+
     // Initialize cube vertices
     std::vector<Vertex> cubeVertices = {
-        {{center.x - s, center.y - s, center.z + s}, color},
-        {{center.x + s, center.y - s, center.z + s}, color},
-        {{center.x + s, center.y + s, center.z + s}, color},
-        {{center.x - s, center.y + s, center.z + s}, color},
-        {{center.x - s, center.y - s, center.z - s}, color},
-        {{center.x + s, center.y - s, center.z - s}, color},
-        {{center.x + s, center.y + s, center.z - s}, color},
-        {{center.x - s, center.y + s, center.z - s}, color}
+        // Front Face (Z+)
+        {{center.x - s, center.y - s, center.z + s}, color, nFront},
+        {{center.x + s, center.y - s, center.z + s}, color, nFront},
+        {{center.x + s, center.y + s, center.z + s}, color, nFront},
+        {{center.x - s, center.y + s, center.z + s}, color, nFront},
+
+        // Back Face (Z-)
+        {{center.x - s, center.y - s, center.z - s}, color, nBack},
+        {{center.x + s, center.y - s, center.z - s}, color, nBack},
+        {{center.x + s, center.y + s, center.z - s}, color, nBack},
+        {{center.x - s, center.y + s, center.z - s}, color, nBack},
+
+        // Top Face (Y-)
+        {{center.x - s, center.y - s, center.z - s}, color, nUp},
+        {{center.x + s, center.y - s, center.z - s}, color, nUp},
+        {{center.x + s, center.y - s, center.z + s}, color, nUp},
+        {{center.x - s, center.y - s, center.z + s}, color, nUp},
+
+        // Bottom Face (Y+)
+        {{center.x - s, center.y + s, center.z - s}, color, nDown},
+        {{center.x + s, center.y + s, center.z - s}, color, nDown},
+        {{center.x + s, center.y + s, center.z + s}, color, nDown},
+        {{center.x - s, center.y + s, center.z + s}, color, nDown},
+
+        // Right Face (X+)
+        {{center.x + s, center.y - s, center.z + s}, color, nRight},
+        {{center.x + s, center.y - s, center.z - s}, color, nRight},
+        {{center.x + s, center.y + s, center.z - s}, color, nRight},
+        {{center.x + s, center.y + s, center.z + s}, color, nRight},
+
+        // Left Face (X-)
+        {{center.x - s, center.y - s, center.z + s}, color, nLeft},
+        {{center.x - s, center.y - s, center.z - s}, color, nLeft},
+        {{center.x - s, center.y + s, center.z - s}, color, nLeft},
+        {{center.x - s, center.y + s, center.z + s}, color, nLeft}
     };
 
     // Initialize indices
-    std::vector<uint32_t> cubeIndices = {
-        0, 1, 2, 2, 3, 0,
-        4, 5, 6, 6, 7, 4,
-        4, 0, 3, 3, 7, 4,
-        1, 5, 6, 6, 2, 1,
-        3, 2, 6, 6, 7, 3,
-        4, 5, 1, 1, 0, 4
-    };
+    std::vector<uint32_t> cubeIndices;
+    for (int f = 0; f < 6; f++) {
+        uint32_t offset = f * 4;
+        cubeIndices.push_back(offset + 0);
+        cubeIndices.push_back(offset + 1);
+        cubeIndices.push_back(offset + 2);
+        cubeIndices.push_back(offset + 2);
+        cubeIndices.push_back(offset + 3);
+        cubeIndices.push_back(offset + 0);
+    }
 
     // Append to global vectors
     vertices.insert(vertices.end(), cubeVertices.begin(), cubeVertices.end());
@@ -284,6 +321,7 @@ void Renderer::updateUniformBuffer() {
     ubo.view = camera.getView();
     ubo.proj = camera.getProjection();
     ubo.proj[1][1] *= -1; // Flip Y axis bc Vulkan
+    ubo.cameraPos = camera.getPosition();
 
     uboBuffer->writeToBuffer(&ubo);
 }

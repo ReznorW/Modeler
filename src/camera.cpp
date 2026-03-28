@@ -102,7 +102,7 @@ void Camera::updateMatrices(float aspect) {
     float y = distance * cos(polar);
     float z = distance * sin(polar) * sin(azimuth);
 
-    glm::vec3 position = target + glm::vec3(x, y, z);
+    position = target + glm::vec3(x, y, z);
     
     setViewTarget(position, target);
     setPerspectiveProjection(glm::radians(45.0f), aspect, 0.1f, 100.0f);
