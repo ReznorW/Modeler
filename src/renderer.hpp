@@ -12,6 +12,7 @@ class Renderer {
 public: 
     void run();
     void addCube(glm::vec3 center, float size, glm::vec3 color);
+    void addGrid(float size);
     void clearGeometry();
 private:
     // --- Constants ---
@@ -44,7 +45,7 @@ private:
     // Buffers
     std::unique_ptr<VulkanBuffer> vertexBuffer;
     std::unique_ptr<VulkanBuffer> indexBuffer;
-    std::unique_ptr<VulkanBuffer> uboBuffer;
+    std::vector<std::unique_ptr<VulkanBuffer>> uboBuffers;
 
     // Object vectors
     std::vector<Vertex> vertices;
@@ -60,6 +61,7 @@ private:
     // --- Functions ---
     // Core Lifecycle
     void initVulkan();
+    void initScene();
     void mainLoop();
     void cleanup();
 
@@ -72,7 +74,7 @@ private:
 
     // Frame execution
     void drawFrame();
-    void updateUniformBuffer();
+    void updateUniformBuffer(uint32_t currentImage);
     void updateGpuBuffers();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 };

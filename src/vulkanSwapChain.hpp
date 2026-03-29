@@ -6,13 +6,14 @@
 #include <vector>
 #include <memory>
 
-#include "VulkanDevice.hpp"
+#include "vulkanDevice.hpp"
+#include "vulkanBuffer.hpp"
 
 struct UniformBufferObject {
     glm::mat4 model;
     glm::mat4 view;
     glm::mat4 proj;
-    alignas(16) glm::vec3 cameraPos;
+    glm::vec4 cameraPos;
 };
 
 class VulkanSwapchain {
@@ -34,7 +35,7 @@ public:
     VkDescriptorSet getDescriptorSet(uint32_t index) { return descriptorSets[index]; }
 
     void createFramebuffers(VkRenderPass renderPass);
-    void createDescriptorSets(VkBuffer uboBuffer);
+    void createDescriptorSets(const std::vector<std::unique_ptr<VulkanBuffer>>& uboBuffers);
     void recreate(VkSurfaceKHR surface, VkExtent2D extent, VkRenderPass renderPass);
 
 private:

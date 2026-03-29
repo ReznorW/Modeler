@@ -121,7 +121,7 @@ void VulkanSwapchain::createFramebuffers(VkRenderPass renderPass) {
     }
 }
 
-void VulkanSwapchain::createDescriptorSets(VkBuffer uboBuffer) {
+void VulkanSwapchain::createDescriptorSets(const std::vector<std::unique_ptr<VulkanBuffer>>& uboBuffers) {
     // Get image count
     size_t imageCount = swapChainImages.size();
 
@@ -147,7 +147,7 @@ void VulkanSwapchain::createDescriptorSets(VkBuffer uboBuffer) {
     for (size_t i = 0; i < imageCount; i++) {
         // Set parameters for descriptor buffer
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uboBuffer;
+        bufferInfo.buffer = uboBuffers[i]->getHandle();
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(UniformBufferObject);
 
@@ -304,7 +304,7 @@ void VulkanSwapchain::createDescriptorSetLayout() {
     uboLayoutBinding.binding = 0;
     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     // Set parameters for descriptor set layout for UBO and pass in binding
     VkDescriptorSetLayoutCreateInfo layoutInfo{};

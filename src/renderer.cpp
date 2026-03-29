@@ -17,6 +17,7 @@
 // === Public functions ===
 void Renderer::run() {
     initVulkan();
+    initScene();
     mainLoop();
     cleanup();
 }
@@ -94,6 +95,31 @@ void Renderer::addCube(glm::vec3 center, float size, glm::vec3 color) {
     dirtyGeo = true;
 }
 
+void Renderer::addGrid(float size) {
+    float s = size / 2.0f;
+    uint32_t startIndex = static_cast<uint32_t>(vertices.size());
+    
+    glm::vec3 gridFlag = glm::vec3(-1.0f); 
+    glm::vec3 up = glm::vec3(0.0f, -1.0f, 0.0f);
+
+    // Grid vertices
+    vertices.push_back({{ -s, 0.0f, -s }, gridFlag, up});
+    vertices.push_back({{  s, 0.0f, -s }, gridFlag, up});
+    vertices.push_back({{  s, 0.0f,  s }, gridFlag, up});
+    vertices.push_back({{ -s, 0.0f,  s }, gridFlag, up});
+
+    // Grid indices
+    indices.push_back(startIndex + 0);
+    indices.push_back(startIndex + 1);
+    indices.push_back(startIndex + 2);
+    indices.push_back(startIndex + 2);
+    indices.push_back(startIndex + 3);
+    indices.push_back(startIndex + 0);
+
+    // Trigger a GPU upload
+    dirtyGeo = true;
+}
+
 void Renderer::clearGeometry() {
     vertices.clear();
     indices.clear();
@@ -114,7 +140,11 @@ void Renderer::initVulkan() {
     vulkanSwapchain->createFramebuffers(renderPass);
     createGeoBuffers();
     createUniformBuffers();
-    vulkanSwapchain->createDescriptorSets(uboBuffer->getHandle());
+    vulkanSwapchain->createDescriptorSets(uboBuffers);
+}
+
+void Renderer::initScene() {
+    addGrid(200.0f);
 }
 
 void Renderer::mainLoop() {
@@ -128,9 +158,6 @@ void Renderer::mainLoop() {
 
         // Update camera
         camera.updateMatrices(vulkanSwapchain->getExtentAspectRatio());
-
-        // Update cube position
-        updateUniformBuffer();
 
         // Draw frame
         drawFrame();
@@ -231,10 +258,16 @@ void Renderer::createGeoBuffers() {
 }
 
 void Renderer::createUniformBuffers() {
-    // Create Uniform Buffer Object and pointer
+    // Create Uniform Buffer Objects for each image
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-    uboBuffer = std::make_unique<VulkanBuffer>(*vulkanDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    uboBuffer->map();
+    size_t imageCount = vulkanSwapchain->getImageCount();
+    
+    uboBuffers.resize(imageCount);
+
+    for (size_t i = 0; i < imageCount; i++) {
+        uboBuffers[i] = std::make_unique<VulkanBuffer>(*vulkanDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        uboBuffers[i]->map();
+    }
 }
 
 // --- Frame execution ---
@@ -270,6 +303,9 @@ void Renderer::drawFrame() {
         vulkanSwapchain->recreate(vulkanDevice->getSurface(), window.getExtent(), renderPass);
         return;
     }
+
+    // Update UBO
+    updateUniformBuffer(imageIndex);
 
     // Get commandbuffer
     VkCommandBuffer commandBuffer = vulkanDevice->getCommandBuffer();
@@ -315,15 +351,15 @@ void Renderer::drawFrame() {
     }
 }
 
-void Renderer::updateUniformBuffer() {
+void Renderer::updateUniformBuffer(uint32_t currentImage) {
     UniformBufferObject ubo{};
     ubo.model = glm::mat4(1.0f);
     ubo.view = camera.getView();
     ubo.proj = camera.getProjection();
     ubo.proj[1][1] *= -1; // Flip Y axis bc Vulkan
-    ubo.cameraPos = camera.getPosition();
+    ubo.cameraPos = glm::vec4(camera.getPosition(), 1.0f);
 
-    uboBuffer->writeToBuffer(&ubo);
+    uboBuffers[currentImage]->writeToBuffer(&ubo);
 }
 
 void Renderer::updateGpuBuffers() {
