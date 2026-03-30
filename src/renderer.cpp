@@ -126,6 +126,44 @@ void Renderer::clearGeometry() {
     dirtyGeo = true;
 }
 
+int Renderer::findClosestVertex(float threshold = 0.5f) {
+    glm::vec3 rayDirWorld = window.getInput().getMouseRay(window.getExtent().width, window.getExtent().height, camera.getView(), camera.getProjection());
+    glm::vec3 rayOriginWorld = camera.getPosition();
+
+    glm::mat4 modelMatrix = glm::mat4(1.0f);
+    glm::mat4 invModel = glm::inverse(modelMatrix);
+
+    glm::vec3 rayOrigin = glm::vec3(invModel * glm::vec4(rayOriginWorld, 1.0f));
+    glm::vec3 rayDir = glm::normalize(glm::vec3(invModel * glm::vec4(rayDirWorld, 0.0f)));
+
+    int closestIndex = -1;
+    float minDistance = threshold;
+
+    for (int i = 0; i < vertices.size(); i++) {
+        // Get vertex position
+        glm::vec3 vPos = vertices[i].pos;
+
+        // Get vector from ray origin to vertex
+        glm::vec3 toVertex = vPos - rayOrigin;
+
+        float t = glm::dot(toVertex, rayDir);
+        if (t < 0) continue;
+
+        // Get the point along on the ray
+        glm::vec3 pointOnRay = rayOrigin + rayDir * t;
+
+        // Find distance from point to vertex
+        float dist = glm::distance(pointOnRay, vPos);
+
+        if (dist < minDistance) {
+            minDistance = dist;
+            closestIndex = i;
+        }
+    }
+
+    return closestIndex;
+}
+
 // === Private functions ===
 // --- Core Lifecycle ---
 void Renderer::initVulkan() {
@@ -136,7 +174,15 @@ void Renderer::initVulkan() {
     vulkanSwapchain = std::make_unique<VulkanSwapchain>(*vulkanDevice, vulkanDevice->getSurface(), window.getExtent());
 
     createRenderPass();
-    vulkanPipeline = std::make_unique<VulkanPipeline>(*vulkanDevice, renderPass, vulkanSwapchain->getDescriptorSetLayout(), "shaders/vert.spv", "shaders/frag.spv");
+
+    // Create main pipeline
+    PipelineConfig mainConfig{};
+    mainPipeline = std::make_unique<VulkanPipeline>(*vulkanDevice, renderPass, vulkanSwapchain->getDescriptorSetLayout(), mainConfig, "../shaders/main");
+
+    // Create point pipeline
+    PipelineConfig pointConfig{};
+    pointConfig.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    pointPipeline = std::make_unique<VulkanPipeline>(*vulkanDevice, renderPass, vulkanSwapchain->getDescriptorSetLayout(), pointConfig, "../shaders/point");
     vulkanSwapchain->createFramebuffers(renderPass);
     createGeoBuffers();
     createUniformBuffers();
@@ -429,11 +475,11 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     // Bind pipeline to command buffer
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanPipeline->getPipeline());
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mainPipeline->getPipeline());
 
     // Bind descriptor sets to command buffer
     VkDescriptorSet currentDescriptorSet = vulkanSwapchain->getDescriptorSet(imageIndex);
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanPipeline->getLayout(), 0, 1, &currentDescriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mainPipeline->getLayout(), 0, 1, &currentDescriptorSet, 0, nullptr);
 
     // Bind geometry buffers to command buffer
     VkBuffer vertexBuffers[] = { vertexBuffer->getHandle() };
@@ -444,6 +490,18 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
     // Pass in indices for draw order
     if (!indices.empty()) {
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+    }
+
+    if (showVertices) {
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pointPipeline->getPipeline());
+
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pointPipeline->getLayout(), 0, 1, &currentDescriptorSet, 0, nullptr);
+
+        SelectionPC push{};
+        push.selectedIndex = selectedVertex;
+        vkCmdPushConstants(commandBuffer, pointPipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SelectionPC), &push);
+
+        vkCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
     }
 
     // End render pass

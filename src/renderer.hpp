@@ -14,6 +14,10 @@ public:
     void addCube(glm::vec3 center, float size, glm::vec3 color);
     void addGrid(float size);
     void clearGeometry();
+    void toggleVertices() { showVertices = !showVertices; }
+    int findClosestVertex(float threshold);
+    void selectVertex(int index) { selectedVertex = index; }
+    void deselectAll() { selectedVertex = -1; }
 private:
     // --- Constants ---
     const size_t MAX_VERTEX_COUNT = 10000;
@@ -33,8 +37,9 @@ private:
     // Device
     std::unique_ptr<VulkanDevice> vulkanDevice;
 
-    // Pipeline
-    std::unique_ptr<VulkanPipeline> vulkanPipeline;
+    // Pipelines
+    std::unique_ptr<VulkanPipeline> mainPipeline;
+    std::unique_ptr<VulkanPipeline> pointPipeline;
 
     // Swapchain
     std::unique_ptr<VulkanSwapchain> vulkanSwapchain;
@@ -51,12 +56,16 @@ private:
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
 
+    // Selection
+    int selectedVertex = -1;
+
     // Camera
     Camera camera;
 
     // Flags
     bool dirtyGeo = true;
     bool framebufferResized = false;
+    bool showVertices = false;
 
     // --- Functions ---
     // Core Lifecycle

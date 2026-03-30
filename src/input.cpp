@@ -35,6 +35,11 @@ void Input::update(WindowContext& window, Camera& camera, Renderer& renderer) {
         renderer.clearGeometry();
     }
 
+    // Show verticies
+    if (input.isKeyPressed(keys.showVerts)) {
+        renderer.toggleVertices();
+    }
+
     // Exit program
     if (input.isKeyPressed(keys.closeApp)) {
         glfwSetWindowShouldClose(window.getHandle(), true);
@@ -50,6 +55,16 @@ void Input::update(WindowContext& window, Camera& camera, Renderer& renderer) {
         float dy = input.getMouseDY() * sensitivity;
 
         camera.updateOrbit(dx, dy);
+    }
+
+    if (input.isLeftClickPressed()) {
+        int index = renderer.findClosestVertex(0.1f);
+
+        if (index != -1) {
+            renderer.selectVertex(index);
+        } else {
+            renderer.deselectAll();
+        }
     }
 
     // Zoom

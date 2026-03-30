@@ -37,12 +37,12 @@ std::array<VkVertexInputAttributeDescription, 3> Vertex::getAttributeDescription
     return attributeDescriptions;
 }
 
-VulkanPipeline::VulkanPipeline(VulkanDevice& device, VkRenderPass renderPass, VkDescriptorSetLayout descriptorSetLayout, const std::string& vertPath, const std::string& fragPath)
+VulkanPipeline::VulkanPipeline(VulkanDevice& device, VkRenderPass renderPass, VkDescriptorSetLayout descriptorSetLayout, const PipelineConfig& config, const std::string& shaderPath)
     : deviceRef{device} {
     
     // Read in shaders
-    auto vertShaderCode = readFile("C:/Users/rezno/Documents/Modeler/shaders/vert.spv");
-    auto fragShaderCode = readFile("C:/Users/rezno/Documents/Modeler/shaders/frag.spv");
+    auto vertShaderCode = readFile(shaderPath + "/vert.spv");
+    auto fragShaderCode = readFile(shaderPath + "/frag.spv");
 
     // Create shader modules
     VkShaderModule vertShaderModule = createShaderModule(deviceRef.getLogicalDevice(), vertShaderCode);
@@ -63,7 +63,7 @@ VulkanPipeline::VulkanPipeline(VulkanDevice& device, VkRenderPass renderPass, Vk
     // Set parameters for pipeline input assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.topology = config.topology;
 
     // Set parameters for pipeline viewport state
     VkPipelineViewportStateCreateInfo viewportState{};
@@ -124,11 +124,19 @@ VulkanPipeline::VulkanPipeline(VulkanDevice& device, VkRenderPass renderPass, Vk
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    // Set parameters for push constant
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(SelectionPC);
+
     // Set parameters and attempt to create a pipeline layout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
     // Attempt to create pipeline layout
     if (vkCreatePipelineLayout(deviceRef.getLogicalDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {

@@ -17,9 +17,17 @@ struct Vertex {
     static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();
 };
 
+struct PipelineConfig {
+    VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+};
+
+struct SelectionPC {
+    int selectedIndex;
+};
+
 class VulkanPipeline {
 public:
-    VulkanPipeline(VulkanDevice& device, VkRenderPass renderPass, VkDescriptorSetLayout descriptorSetLayout, const std::string& vertPath, const std::string& fragPath);
+    VulkanPipeline(VulkanDevice& device, VkRenderPass renderPass, VkDescriptorSetLayout descriptorSetLayout, const PipelineConfig& config, const std::string& shaderPath);
     ~VulkanPipeline();
 
     // Prevent copying

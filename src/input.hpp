@@ -17,6 +17,7 @@ public:
         int spawnCube = GLFW_KEY_A;
         int clearGeo = GLFW_KEY_C;
         int closeApp = GLFW_KEY_ESCAPE;
+        int showVerts = GLFW_KEY_V;
     };
 
     void update(WindowContext& window, Camera& camera, Renderer& renderer);
