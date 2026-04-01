@@ -48,9 +48,15 @@ private:
     VkRenderPass renderPass;
 
     // Buffers
+    std::unique_ptr<VulkanBuffer> sceneVertexBuffer;
+    std::unique_ptr<VulkanBuffer> sceneIndexBuffer;
     std::unique_ptr<VulkanBuffer> vertexBuffer;
     std::unique_ptr<VulkanBuffer> indexBuffer;
     std::vector<std::unique_ptr<VulkanBuffer>> uboBuffers;
+
+    // Scene vectors
+    std::vector<Vertex> sceneVertices;
+    std::vector<uint32_t> sceneIndices;
 
     // Object vectors
     std::vector<Vertex> vertices;

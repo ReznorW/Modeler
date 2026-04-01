@@ -97,24 +97,24 @@ void Renderer::addCube(glm::vec3 center, float size, glm::vec3 color) {
 
 void Renderer::addGrid(float size) {
     float s = size / 2.0f;
-    uint32_t startIndex = static_cast<uint32_t>(vertices.size());
+    uint32_t startIndex = static_cast<uint32_t>(sceneVertices.size());
     
     glm::vec3 gridFlag = glm::vec3(-1.0f); 
     glm::vec3 up = glm::vec3(0.0f, -1.0f, 0.0f);
 
     // Grid vertices
-    vertices.push_back({{ -s, 0.0f, -s }, gridFlag, up});
-    vertices.push_back({{  s, 0.0f, -s }, gridFlag, up});
-    vertices.push_back({{  s, 0.0f,  s }, gridFlag, up});
-    vertices.push_back({{ -s, 0.0f,  s }, gridFlag, up});
+    sceneVertices.push_back({{-s, 0.0f, -s }, gridFlag, up});
+    sceneVertices.push_back({{s, 0.0f, -s }, gridFlag, up});
+    sceneVertices.push_back({{s, 0.0f, s }, gridFlag, up});
+    sceneVertices.push_back({{-s, 0.0f, s }, gridFlag, up});
 
     // Grid indices
-    indices.push_back(startIndex + 0);
-    indices.push_back(startIndex + 1);
-    indices.push_back(startIndex + 2);
-    indices.push_back(startIndex + 2);
-    indices.push_back(startIndex + 3);
-    indices.push_back(startIndex + 0);
+    sceneIndices.push_back(startIndex + 0);
+    sceneIndices.push_back(startIndex + 1);
+    sceneIndices.push_back(startIndex + 2);
+    sceneIndices.push_back(startIndex + 2);
+    sceneIndices.push_back(startIndex + 3);
+    sceneIndices.push_back(startIndex + 0);
 
     // Trigger a GPU upload
     dirtyGeo = true;
@@ -123,6 +123,7 @@ void Renderer::addGrid(float size) {
 void Renderer::clearGeometry() {
     vertices.clear();
     indices.clear();
+    selectedVertex = -1;
     dirtyGeo = true;
 }
 
@@ -294,6 +295,14 @@ void Renderer::createRenderPass() {
 
 // --- GPU resources ---
 void Renderer::createGeoBuffers() {
+    // Create Scene Vertex Staging and Device Local
+    VkDeviceSize sceneVertexBufferSize = sizeof(Vertex) * MAX_VERTEX_COUNT;
+    sceneVertexBuffer = std::make_unique<VulkanBuffer>(*vulkanDevice, sceneVertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    // Create Scene Index Staging and Device Local
+    VkDeviceSize sceneIndexBufferSize = sizeof(uint32_t) * MAX_INDEX_COUNT;
+    sceneIndexBuffer = std::make_unique<VulkanBuffer>(*vulkanDevice, sceneIndexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); 
+
     // Create Vertex Staging and Device Local
     VkDeviceSize vertexBufferSize = sizeof(Vertex) * MAX_VERTEX_COUNT;
     vertexBuffer = std::make_unique<VulkanBuffer>(*vulkanDevice, vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -409,21 +418,37 @@ void Renderer::updateUniformBuffer(uint32_t currentImage) {
 }
 
 void Renderer::updateGpuBuffers() {
-    if (vertices.empty()) return;
+    if (!sceneVertices.empty()) {
+        // Update scene vertex buffer
+        VkDeviceSize sceneVertexSize = sizeof(Vertex) * sceneVertices.size();
+        VulkanBuffer sceneVertexStaging{*vulkanDevice, sceneVertexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+        sceneVertexStaging.map();
+        sceneVertexStaging.writeToBuffer(sceneVertices.data());
+        vulkanDevice->copyBuffer(sceneVertexStaging.getHandle(), sceneVertexBuffer->getHandle(), sceneVertexSize);
 
-    // Update vertex buffer
-    VkDeviceSize vertexSize = sizeof(Vertex) * vertices.size();
-    VulkanBuffer vertexStaging{*vulkanDevice, vertexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
-    vertexStaging.map();
-    vertexStaging.writeToBuffer(vertices.data());
-    vulkanDevice->copyBuffer(vertexStaging.getHandle(), vertexBuffer->getHandle(), vertexSize);
+        // Update scene index buffer
+        VkDeviceSize sceneIndexSize = sizeof(uint32_t) * sceneIndices.size();
+        VulkanBuffer sceneIndexStaging{*vulkanDevice, sceneIndexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+        sceneIndexStaging.map();
+        sceneIndexStaging.writeToBuffer(sceneIndices.data());
+        vulkanDevice->copyBuffer(sceneIndexStaging.getHandle(), sceneIndexBuffer->getHandle(), sceneIndexSize);
+    }
 
-    // Update index buffer
-    VkDeviceSize indexSize = sizeof(uint32_t) * indices.size();
-    VulkanBuffer indexStaging{*vulkanDevice, indexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
-    indexStaging.map();
-    indexStaging.writeToBuffer(indices.data());
-    vulkanDevice->copyBuffer(indexStaging.getHandle(), indexBuffer->getHandle(), indexSize);
+    if (!vertices.empty()) {
+        // Update vertex buffer
+        VkDeviceSize vertexSize = sizeof(Vertex) * vertices.size();
+        VulkanBuffer vertexStaging{*vulkanDevice, vertexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+        vertexStaging.map();
+        vertexStaging.writeToBuffer(vertices.data());
+        vulkanDevice->copyBuffer(vertexStaging.getHandle(), vertexBuffer->getHandle(), vertexSize);
+
+        // Update index buffer
+        VkDeviceSize indexSize = sizeof(uint32_t) * indices.size();
+        VulkanBuffer indexStaging{*vulkanDevice, indexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+        indexStaging.map();
+        indexStaging.writeToBuffer(indices.data());
+        vulkanDevice->copyBuffer(indexStaging.getHandle(), indexBuffer->getHandle(), indexSize);
+    }
 }
 
 void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
@@ -481,6 +506,15 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
     VkDescriptorSet currentDescriptorSet = vulkanSwapchain->getDescriptorSet(imageIndex);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mainPipeline->getLayout(), 0, 1, &currentDescriptorSet, 0, nullptr);
 
+    // Bind scene geometry buffers to command buffer
+    if (!sceneIndices.empty()) {
+        VkBuffer sceneVertexBuffers[] = { sceneVertexBuffer->getHandle() };
+        VkDeviceSize sceneOffsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, sceneVertexBuffers, sceneOffsets);
+        vkCmdBindIndexBuffer(commandBuffer, sceneIndexBuffer->getHandle(), 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(sceneIndices.size()), 1, 0, 0, 0);
+    }
+
     // Bind geometry buffers to command buffer
     VkBuffer vertexBuffers[] = { vertexBuffer->getHandle() };
     VkDeviceSize offsets[] = {0};
@@ -494,13 +528,10 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
 
     if (showVertices) {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pointPipeline->getPipeline());
-
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pointPipeline->getLayout(), 0, 1, &currentDescriptorSet, 0, nullptr);
-
         SelectionPC push{};
         push.selectedIndex = selectedVertex;
         vkCmdPushConstants(commandBuffer, pointPipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SelectionPC), &push);
-
         vkCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
     }
 
