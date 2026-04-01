@@ -24,9 +24,9 @@ void Input::update(WindowContext& window, Camera& camera, Renderer& renderer) {
     // --- Actions ---
     // Spawn random cube
     if (input.isKeyPressed(keys.spawnCube)) {
-        glm::vec3 pos = {(rand() % 10 - 5) / 2.0f, (rand() % 10 - 5) / 2.0f, (rand() % 10 - 5) / 2.0f};
+        glm::vec3 pos{0.0, 0.0, 0.0};
         glm::vec3 color = {static_cast<float>(rand()) / RAND_MAX, static_cast<float>(rand()) / RAND_MAX, static_cast<float>(rand()) / RAND_MAX};
-        renderer.addCube(pos, 0.5f, color);
+        renderer.addCube(pos, 1.0f, color);
         std::cout << "Added Cube!" << std::endl;
     }
 
@@ -39,6 +39,14 @@ void Input::update(WindowContext& window, Camera& camera, Renderer& renderer) {
     if (input.isKeyPressed(keys.showVerts)) {
         renderer.toggleVertices();
     }
+
+    // Move selected vertex
+    if (input.isKeyPressed(keys.moveVertexLeft)) {renderer.translateVertex(glm::vec3{-0.1, 0.0, 0.0});}
+    if (input.isKeyPressed(keys.moveVertexRight)) {renderer.translateVertex(glm::vec3{0.1, 0.0, 0.0});}
+    if (input.isKeyPressed(keys.moveVertexUp)) {renderer.translateVertex(glm::vec3{0.0, -0.1, 0.0});}
+    if (input.isKeyPressed(keys.moveVertexDown)) {renderer.translateVertex(glm::vec3{0.0, 0.1, 0.0});}
+    if (input.isKeyPressed(keys.moveVertexForward)) {renderer.translateVertex(glm::vec3{0.0, 0.0, 0.1});}
+    if (input.isKeyPressed(keys.moveVertexBackward)) {renderer.translateVertex(glm::vec3{0.0, 0.0, -0.1});}
 
     // Exit program
     if (input.isKeyPressed(keys.closeApp)) {

@@ -18,6 +18,7 @@ public:
     int findClosestVertex(float threshold);
     void selectVertex(int index) { selectedVertex = index; }
     void deselectAll() { selectedVertex = -1; }
+    void translateVertex(glm::vec3 translation);
 private:
     // --- Constants ---
     const size_t MAX_VERTEX_COUNT = 10000;

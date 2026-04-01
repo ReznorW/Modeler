@@ -28,7 +28,13 @@ struct InputState {
         previous = current;
 
         static const std::vector<int> keysToTrack = {
+            GLFW_KEY_W,
             GLFW_KEY_A, 
+            GLFW_KEY_S,
+            GLFW_KEY_D,
+            GLFW_KEY_Q,
+            GLFW_KEY_E,
+            GLFW_KEY_X,
             GLFW_KEY_C, 
             GLFW_KEY_V,
             GLFW_KEY_ESCAPE, 

@@ -127,6 +127,20 @@ void Renderer::clearGeometry() {
     dirtyGeo = true;
 }
 
+void Renderer::translateVertex(glm::vec3 translation) {
+    if (!showVertices || selectedVertex == -1) return;
+
+    glm::vec3 targetPos = vertices[selectedVertex].pos;
+
+    for (int i = 0; i < vertices.size(); i++) {
+        if (glm::distance(vertices[i].pos, targetPos) < 0.0001f) {
+            vertices[i].pos += translation;
+        }
+    }
+    
+    dirtyGeo = true;
+}
+
 int Renderer::findClosestVertex(float threshold = 0.5f) {
     glm::vec3 rayDirWorld = window.getInput().getMouseRay(window.getExtent().width, window.getExtent().height, camera.getView(), camera.getProjection());
     glm::vec3 rayOriginWorld = camera.getPosition();
