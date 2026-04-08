@@ -43,7 +43,8 @@ struct InputState {
             GLFW_KEY_UP, 
             GLFW_KEY_DOWN,
             GLFW_KEY_EQUAL, 
-            GLFW_KEY_MINUS
+            GLFW_KEY_MINUS,
+            GLFW_KEY_LEFT_CONTROL
         };
 
         for (int key : keysToTrack) {

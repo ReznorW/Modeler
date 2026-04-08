@@ -1,5 +1,7 @@
 #pragma once
 
+#include <set>
+
 #include "windowContext.hpp"
 #include "vulkanDevice.hpp"
 #include "vulkanSwapchain.hpp"
@@ -16,9 +18,9 @@ public:
     void clearGeometry();
     void toggleVertices() { showVertices = !showVertices; }
     int findClosestVertex(float threshold);
-    void selectVertex(int index) { selectedVertex = index; }
-    void deselectAll() { selectedVertex = -1; }
-    void translateVertex(glm::vec3 translation);
+    void selectVertex(int index, bool append);
+    void deselectAllVertices();
+    void translateSelectedVertices(glm::vec3 translation);
 private:
     // --- Constants ---
     const size_t MAX_VERTEX_COUNT = 10000;
@@ -64,7 +66,7 @@ private:
     std::vector<uint32_t> indices;
 
     // Selection
-    int selectedVertex = -1;
+    std::set<int> selectedVertices;
 
     // Camera
     Camera camera;

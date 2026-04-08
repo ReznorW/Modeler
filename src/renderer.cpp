@@ -4,7 +4,6 @@
 
 #include <iostream>
 #include <stdexcept>
-#include <set>
 #include <fstream>
 #include <string>
 #include <cstdint>
@@ -123,19 +122,53 @@ void Renderer::addGrid(float size) {
 void Renderer::clearGeometry() {
     vertices.clear();
     indices.clear();
-    selectedVertex = -1;
+    deselectAllVertices();
     dirtyGeo = true;
 }
 
-void Renderer::translateVertex(glm::vec3 translation) {
-    if (!showVertices || selectedVertex == -1) return;
+void Renderer::selectVertex(int index, bool append) {
+    if (!append) deselectAllVertices();
 
-    glm::vec3 targetPos = vertices[selectedVertex].pos;
-
-    for (int i = 0; i < vertices.size(); i++) {
-        if (glm::distance(vertices[i].pos, targetPos) < 0.0001f) {
-            vertices[i].pos += translation;
+    if (index != -1) {
+        glm::vec3 targetPos = vertices[index].pos;
+        for (auto& v : vertices) {
+            if (glm::distance(v.pos, targetPos) < 0.0001f) {
+                v.isSelected = 1.0f;
+                selectedVertices.insert(index); 
+            }
         }
+    }
+
+    for (int selected : selectedVertices) {
+        std::cout << "Selected Vertex: " << selected << std::endl;
+    }
+
+    dirtyGeo = true;
+}
+
+void Renderer::deselectAllVertices() {
+    for (auto& v : vertices) v.isSelected = 0.0f;
+    selectedVertices.clear();
+    dirtyGeo = true;
+}
+
+void Renderer::translateSelectedVertices(glm::vec3 translation) {
+    if (!showVertices || selectedVertices.empty()) return;
+
+    std::set<int> verticesToMove;
+    
+    for (int baseVertex : selectedVertices) {
+        glm::vec3 targetPos = vertices[baseVertex].pos;
+
+        for (int i = 0; i < vertices.size(); i++) {
+            if (glm::distance(vertices[i].pos, targetPos) < 0.0001f) {
+                verticesToMove.insert(i);
+            }
+        }
+    }
+
+    for (int vertex : verticesToMove) {
+        vertices[vertex].pos += translation;
     }
     
     dirtyGeo = true;
@@ -542,11 +575,12 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
 
     if (showVertices) {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pointPipeline->getPipeline());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pointPipeline->getLayout(), 0, 1, &currentDescriptorSet, 0, nullptr);
-        SelectionPC push{};
-        push.selectedIndex = selectedVertex;
-        vkCmdPushConstants(commandBuffer, pointPipeline->getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(SelectionPC), &push);
-        vkCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
+
+        VkBuffer vBuffers[] = { vertexBuffer->getHandle() };
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vBuffers, offsets);
+
+        vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
     }
 
     // End render pass

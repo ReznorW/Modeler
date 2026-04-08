@@ -41,12 +41,12 @@ void Input::update(WindowContext& window, Camera& camera, Renderer& renderer) {
     }
 
     // Move selected vertex
-    if (input.isKeyPressed(keys.moveVertexLeft)) {renderer.translateVertex(glm::vec3{-0.1, 0.0, 0.0});}
-    if (input.isKeyPressed(keys.moveVertexRight)) {renderer.translateVertex(glm::vec3{0.1, 0.0, 0.0});}
-    if (input.isKeyPressed(keys.moveVertexUp)) {renderer.translateVertex(glm::vec3{0.0, -0.1, 0.0});}
-    if (input.isKeyPressed(keys.moveVertexDown)) {renderer.translateVertex(glm::vec3{0.0, 0.1, 0.0});}
-    if (input.isKeyPressed(keys.moveVertexForward)) {renderer.translateVertex(glm::vec3{0.0, 0.0, 0.1});}
-    if (input.isKeyPressed(keys.moveVertexBackward)) {renderer.translateVertex(glm::vec3{0.0, 0.0, -0.1});}
+    if (input.isKeyPressed(keys.moveVertexLeft)) {renderer.translateSelectedVertices(glm::vec3{-0.1, 0.0, 0.0});}
+    if (input.isKeyPressed(keys.moveVertexRight)) {renderer.translateSelectedVertices(glm::vec3{0.1, 0.0, 0.0});}
+    if (input.isKeyPressed(keys.moveVertexUp)) {renderer.translateSelectedVertices(glm::vec3{0.0, -0.1, 0.0});}
+    if (input.isKeyPressed(keys.moveVertexDown)) {renderer.translateSelectedVertices(glm::vec3{0.0, 0.1, 0.0});}
+    if (input.isKeyPressed(keys.moveVertexForward)) {renderer.translateSelectedVertices(glm::vec3{0.0, 0.0, 0.1});}
+    if (input.isKeyPressed(keys.moveVertexBackward)) {renderer.translateSelectedVertices(glm::vec3{0.0, 0.0, -0.1});}
 
     // Exit program
     if (input.isKeyPressed(keys.closeApp)) {
@@ -68,10 +68,14 @@ void Input::update(WindowContext& window, Camera& camera, Renderer& renderer) {
     if (input.isLeftClickPressed()) {
         int index = renderer.findClosestVertex(0.1f);
 
+        bool ctrlHeld = input.isKeyHeld(keys.addSelected);
+
         if (index != -1) {
-            renderer.selectVertex(index);
+            renderer.selectVertex(index, ctrlHeld);
         } else {
-            renderer.deselectAll();
+            if (!ctrlHeld) {
+                renderer.deselectAllVertices();
+            }
         }
     }
 

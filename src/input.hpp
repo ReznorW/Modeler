@@ -24,6 +24,7 @@ public:
         int clearGeo = GLFW_KEY_C;
         int closeApp = GLFW_KEY_ESCAPE;
         int showVerts = GLFW_KEY_V;
+        int addSelected = GLFW_KEY_LEFT_CONTROL;
     };
 
     void update(WindowContext& window, Camera& camera, Renderer& renderer);
